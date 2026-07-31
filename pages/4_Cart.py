@@ -21,14 +21,6 @@ st.markdown("""
     h1, h2, h3 {
         color: #1a1a2e !important;
     }
-    .cart-item {
-        background: #ffffff;
-        border: 1px solid #eee;
-        border-radius: 14px;
-        padding: 1rem;
-        margin-bottom: 0.9rem;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.04);
-    }
     .item-name {
         font-size: 1.05rem;
         font-weight: 600;
@@ -45,6 +37,15 @@ st.markdown("""
         padding: 1.2rem;
         margin-top: 1rem;
         border: 1px solid #eee;
+    }
+    .grocery-box {
+        background: #fff8f0;
+        border: 1px solid #ffe0c2;
+        border-radius: 10px;
+        padding: 0.8rem 1rem;
+        margin-top: 0.6rem;
+        font-size: 0.9rem;
+        white-space: pre-wrap;
     }
     .stButton > button {
         width: 100%;
@@ -95,32 +96,50 @@ for index, item in enumerate(cart):
             if item.get("image_url"):
                 st.image(item["image_url"], width=70)
             else:
-                st.markdown("### 📦")
+                st.markdown("### 🛒" if item.get("is_grocery") else "### 📦")
 
         with col2:
             st.markdown(f"<div class='item-name'>{item['name']}</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='item-price'>₱{item['price']:.2f}</div>", unsafe_allow_html=True)
+            
+            if item.get("is_grocery") and item.get("estimated_budget", 0) > 0:
+                st.markdown(f"<div class='item-price'>Est. Budget: ₱{item['price']:.2f}</div>", unsafe_allow_html=True)
+            else:
+                st.markdown(f"<div class='item-price'>₱{item['price']:.2f}</div>", unsafe_allow_html=True)
 
-            # Quantity controls
-            q1, q2, q3, q4 = st.columns([1, 1, 1, 2])
+            # Show grocery list if exists
+            if item.get("is_grocery") and item.get("grocery_list"):
+                st.markdown(f"""
+                <div class="grocery-box">
+                    <strong>Shopping List:</strong><br>
+                    {item['grocery_list']}
+                </div>
+                """, unsafe_allow_html=True)
 
-            with q1:
-                if st.button("−", key=f"minus_{index}"):
-                    if item["quantity"] > 1:
-                        item["quantity"] -= 1
-                    else:
+            # Quantity controls (hide for grocery custom list)
+            if not item.get("is_grocery"):
+                q1, q2, q3, q4 = st.columns([1, 1, 1, 2])
+
+                with q1:
+                    if st.button("−", key=f"minus_{index}"):
+                        if item["quantity"] > 1:
+                            item["quantity"] -= 1
+                        else:
+                            cart.pop(index)
+                        st.rerun()
+
+                with q2:
+                    st.markdown(f"<div style='text-align:center; font-weight:600; padding-top:0.4rem'>{item['quantity']}</div>", unsafe_allow_html=True)
+
+                with q3:
+                    if st.button("+", key=f"plus_{index}"):
+                        item["quantity"] += 1
+                        st.rerun()
+
+                with q4:
+                    if st.button("Remove", key=f"remove_{index}"):
                         cart.pop(index)
-                    st.rerun()
-
-            with q2:
-                st.markdown(f"<div style='text-align:center; font-weight:600; padding-top:0.4rem'>{item['quantity']}</div>", unsafe_allow_html=True)
-
-            with q3:
-                if st.button("+", key=f"plus_{index}"):
-                    item["quantity"] += 1
-                    st.rerun()
-
-            with q4:
+                        st.rerun()
+            else:
                 if st.button("Remove", key=f"remove_{index}"):
                     cart.pop(index)
                     st.rerun()
@@ -131,8 +150,6 @@ for index, item in enumerate(cart):
 # Order Summary
 # --------------------------------------------------
 subtotal = sum(item["price"] * item["quantity"] for item in cart)
-
-# Temporary fixed delivery fee (we will make this dynamic later)
 delivery_fee = 25.00
 total = subtotal + delivery_fee
 

@@ -1,7 +1,12 @@
 import streamlit as st
 from utils.supabase_client import get_supabase
 
-st.set_page_config(page_title="Admin Dashboard • MarksUp", page_icon="🛵", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(
+    page_title="Admin Dashboard • MarksUp",
+    page_icon="🛵",
+    layout="centered",
+    initial_sidebar_state="collapsed"
+)
 
 # Auth check
 if "user" not in st.session_state or st.session_state["user"].get("role") != "admin":
@@ -11,7 +16,12 @@ if "user" not in st.session_state or st.session_state["user"].get("role") != "ad
 st.markdown("""
 <style>
     .stApp { max-width: 500px; margin: auto; }
-    .stButton > button { width: 100%; border-radius: 10px; height: 2.8rem; font-weight: 600; }
+    .stButton > button { 
+        width: 100%; 
+        border-radius: 10px; 
+        height: 2.8rem; 
+        font-weight: 600; 
+    }
     #MainMenu, footer, header {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
@@ -49,6 +59,9 @@ if st.button("📋  Manage Orders"):
 
 if st.button("🛍️  Manage Items"):
     st.switch_page("pages/24_Admin_Items.py")
+
+if st.button("💰  Wallet Top-up"):
+    st.switch_page("pages/27_Admin_Wallet.py")
 
 st.write("")
 if st.button("🔒 Logout"):

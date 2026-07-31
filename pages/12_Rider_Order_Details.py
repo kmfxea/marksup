@@ -51,6 +51,16 @@ st.markdown("""
         margin-bottom: 0.8rem;
         border: 1px solid #eee;
     }
+    .grocery-box {
+        background: #e8f5e9;
+        border: 1px solid #c8e6c9;
+        border-radius: 12px;
+        padding: 1rem;
+        margin: 0.8rem 0;
+        white-space: pre-wrap;
+        font-size: 0.95rem;
+        line-height: 1.5;
+    }
     .msg-rider {
         background: #e3f2fd;
         padding: 0.7rem 1rem;
@@ -146,6 +156,22 @@ else:
 st.write("")
 
 # --------------------------------------------------
+# CUSTOMER SHOPPING LIST / NOTES (IMPORTANT)
+# --------------------------------------------------
+st.markdown("#### 🛒 Customer Shopping List")
+
+if order.get("notes") and order["notes"].strip():
+    st.markdown(f"""
+    <div class="grocery-box">
+        {order['notes']}
+    </div>
+    """, unsafe_allow_html=True)
+else:
+    st.warning("No detailed shopping list provided by the customer.")
+
+st.write("")
+
+# --------------------------------------------------
 # Fees Summary
 # --------------------------------------------------
 st.markdown("#### Fees")
@@ -167,7 +193,7 @@ if order["items_total"] > 100:
 st.write("")
 
 # --------------------------------------------------
-# In-App Messaging (Rider ↔ Customer)
+# In-App Messaging
 # --------------------------------------------------
 st.markdown("#### Message Customer")
 

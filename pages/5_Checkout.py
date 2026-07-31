@@ -29,6 +29,15 @@ st.markdown("""
         margin-top: 1rem;
         border: 1px solid #eee;
     }
+    .grocery-box {
+        background: #fff8f0;
+        border: 1px solid #ffe0c2;
+        border-radius: 12px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        white-space: pre-wrap;
+        font-size: 0.95rem;
+    }
     .stButton > button {
         width: 100%;
         border-radius: 10px;
@@ -59,7 +68,6 @@ cart = st.session_state.cart
 store_id = st.session_state["selected_store_id"]
 store_name = st.session_state.get("selected_store_name", "Store")
 
-# Check if this is a grocery order
 is_grocery_order = any(item.get("is_grocery") for item in cart)
 
 # --------------------------------------------------
@@ -74,15 +82,22 @@ if st.button("← Back to Cart"):
 st.write("")
 
 # --------------------------------------------------
-# Show Grocery List if applicable
+# Show Grocery List
 # --------------------------------------------------
 if is_grocery_order:
-    grocery_item = cart[0]
-    st.info("🛒 **Grocery Order**")
-    st.markdown("**Your Shopping List:**")
-    st.text(grocery_item.get("grocery_list", ""))
+    grocery_item = next((item for item in cart if item.get("is_grocery")), None)
+    
+    st.markdown("#### 🛒 Grocery Order")
+    st.markdown(f"""
+    <div class="grocery-box">
+        <strong>Your Shopping List:</strong><br><br>
+        {grocery_item.get("grocery_list", "No list provided")}
+    </div>
+    """, unsafe_allow_html=True)
+    
     if grocery_item.get("estimated_budget", 0) > 0:
         st.caption(f"Estimated Budget: ₱{grocery_item['estimated_budget']:.2f}")
+    
     st.write("")
 
 # --------------------------------------------------
@@ -192,17 +207,19 @@ if st.button("Place Order"):
             with st.spinner("Placing your order..."):
                 supabase = get_supabase()
 
-                # Prepare notes (especially for grocery)
+                # Get grocery list for notes
                 notes = None
                 if is_grocery_order:
-                    notes = cart[0].get("grocery_list", "")
+                    grocery_item = next((item for item in cart if item.get("is_grocery")), None)
+                    if grocery_item:
+                        notes = grocery_item.get("grocery_list", "")
 
                 # Create Order
                 order_data = {
                     "customer_name": customer_name,
                     "customer_contact": customer_contact,
                     "delivery_address": delivery_address,
-                    "landmark": landmark,
+                    "landmark": landmark if landmark else None,
                     "store_id": store_id,
                     "status": "Order Placed",
                     "payment_method": payment_method,
@@ -219,25 +236,24 @@ if st.button("Place Order"):
                 order_id = order_response.data[0]["id"]
                 order_number = order_response.data[0]["order_number"]
 
-                # Insert Order Items (handle grocery separately)
+                # Insert Order Items
                 for item in cart:
                     if item.get("is_grocery"):
                         supabase.table("order_items").insert({
                             "order_id": order_id,
-                            "item_id": None,
                             "item_name": "Custom Grocery List",
-                            "item_price": item.get("estimated_budget") or 0,
+                            "item_price": float(item.get("estimated_budget") or 0),
                             "quantity": 1,
-                            "subtotal": item.get("estimated_budget") or 0
+                            "subtotal": float(item.get("estimated_budget") or 0)
                         }).execute()
                     else:
                         supabase.table("order_items").insert({
                             "order_id": order_id,
                             "item_id": item["id"],
                             "item_name": item["name"],
-                            "item_price": item["price"],
-                            "quantity": item["quantity"],
-                            "subtotal": item["price"] * item["quantity"]
+                            "item_price": float(item["price"]),
+                            "quantity": int(item["quantity"]),
+                            "subtotal": float(item["price"]) * int(item["quantity"])
                         }).execute()
 
                 # Clear cart
