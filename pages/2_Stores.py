@@ -31,25 +31,19 @@ st.markdown("""
         font-size: 0.88rem;
         color: #777;
     }
+    /* Orange primary buttons */
     .stButton > button {
         width: 100%;
-        border-radius: 10px;
-        height: 2.6rem;
+        border-radius: 12px;
+        height: 2.8rem;
         font-weight: 600;
         border: none;
+        background-color: #FF6B00 !important;
+        color: white !important;
     }
-    /* Category buttons */
-    div[data-testid="column"] .stButton > button {
-        height: 2.4rem;
-        font-size: 0.9rem;
-        background: white !important;
-        color: #1a1a2e !important;
-        border: 1px solid #e0e0e0 !important;
-    }
-    div[data-testid="column"] .stButton > button:hover {
-        background: #FFF3E8 !important;
-        border-color: #FF6B00 !important;
-        color: #FF6B00 !important;
+    .stButton > button:hover {
+        background-color: #e65c00 !important;
+        color: white !important;
     }
     #MainMenu, footer, header {visibility: hidden;}
 </style>
@@ -77,21 +71,24 @@ search = st.text_input(
 st.write("")
 
 # --------------------------------------------------
-# Category Filter
+# Category Dropdown (cleaner)
 # --------------------------------------------------
-categories = ["All", "Umagahan", "Tanghalian", "Meryenda", "Hapunan", "Grocery", "Pharmacy"]
+CATEGORIES = [
+    "All",
+    "Umagahan",
+    "Tanghalian",
+    "Meryenda",
+    "Hapunan",
+    "Grocery",
+    "Pharmacy"
+]
 
-# Initialize selected category
-if "selected_category" not in st.session_state:
-    st.session_state.selected_category = "All"
+selected_category = st.selectbox(
+    "📂 Category",
+    CATEGORIES,
+    index=0
+)
 
-cols = st.columns(4)
-for i, cat in enumerate(categories):
-    with cols[i % 4]:
-        if st.button(cat, key=f"cat_{cat}"):
-            st.session_state.selected_category = cat
-
-st.caption(f"Filter: **{st.session_state.selected_category}**")
 st.write("")
 
 # --------------------------------------------------
@@ -112,15 +109,13 @@ def get_active_stores():
 # --------------------------------------------------
 try:
     stores = get_active_stores()
-
-    # Apply filters
     filtered = stores
 
     # Category filter
-    if st.session_state.selected_category != "All":
+    if selected_category != "All":
         filtered = [
             s for s in filtered
-            if s.get("category") and st.session_state.selected_category.lower() in s.get("category", "").lower()
+            if s.get("category") and selected_category.lower() in s.get("category", "").lower()
         ]
 
     # Search filter
@@ -136,6 +131,8 @@ try:
     if not filtered:
         st.info("Walang store na tumugma sa search/filter mo.")
     else:
+        st.caption(f"{len(filtered)} store(s) found")
+
         for store in filtered:
             col1, col2 = st.columns([1, 3])
 
