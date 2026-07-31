@@ -15,12 +15,22 @@ if "user" not in st.session_state or st.session_state["user"].get("role") != "ad
 
 st.markdown("""
 <style>
-    .stApp { max-width: 500px; margin: auto; }
+    .stApp { 
+        max-width: 500px; 
+        margin: auto; 
+    }
     .stButton > button { 
         width: 100%; 
         border-radius: 10px; 
         height: 2.6rem; 
         font-weight: 600; 
+    }
+    .store-card {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 1rem;
+        margin-bottom: 0.8rem;
+        border: 1px solid #eee;
     }
     #MainMenu, footer, header {visibility: hidden;}
 </style>
@@ -44,7 +54,6 @@ def upload_logo(file):
     file_ext = file.name.split(".")[-1]
     file_name = f"{uuid.uuid4()}.{file_ext}"
 
-    # Reusing item-photos bucket or create a store-logos bucket if you prefer
     supabase.storage.from_("item-photos").upload(
         file_name,
         file.getvalue(),
@@ -104,13 +113,14 @@ try:
 
             with col1:
                 if store.get("logo_url"):
-                    st.image(store["logo_url"], width=60)
+                    st.image(store["logo_url"], width=65)
                 else:
-                    st.markdown("🏪")
+                    st.markdown("### 🏪")
 
             with col2:
+                status = "Active" if store["is_active"] else "Inactive"
                 st.markdown(f"**{store['name']}**")
-                st.caption(f"{store.get('category') or 'No category'} • {'Active' if store['is_active'] else 'Inactive'}")
+                st.caption(f"{store.get('category') or 'No category'} • {status}")
 
             c1, c2 = st.columns(2)
             with c1:
