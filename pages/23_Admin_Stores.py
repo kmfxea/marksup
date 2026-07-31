@@ -34,7 +34,7 @@ if st.button("← Back to Dashboard"):
 st.write("")
 
 # --------------------------------------------------
-# Categories (fixed list)
+# Fixed Categories
 # --------------------------------------------------
 CATEGORIES = [
     "Umagahan",
@@ -68,7 +68,13 @@ def upload_logo(file):
 # --------------------------------------------------
 with st.expander("➕ Add New Store", expanded=True):
     name = st.text_input("Store Name*")
-    category = st.selectbox("Category*", CATEGORIES)
+
+    selected_categories = st.multiselect(
+        "Categories * (pwede more than one)",
+        CATEGORIES,
+        help="Example: Chooks to Go = Tanghalian + Hapunan"
+    )
+
     description = st.text_input("Description (optional)")
 
     st.write("**Store Logo**")
@@ -81,6 +87,8 @@ with st.expander("➕ Add New Store", expanded=True):
     if st.button("Save Store"):
         if not name:
             st.error("Store Name is required.")
+        elif not selected_categories:
+            st.error("Please select at least one category.")
         else:
             try:
                 with st.spinner("Saving store..."):
@@ -89,7 +97,8 @@ with st.expander("➕ Add New Store", expanded=True):
                     supabase = get_supabase()
                     supabase.table("stores").insert({
                         "name": name,
-                        "category": category,
+                        "category": selected_categories[0],  # keep old column for compatibility
+                        "categories": selected_categories,   # new multi category
                         "description": description,
                         "logo_url": logo_url,
                         "is_active": True
@@ -124,8 +133,12 @@ try:
 
             with col2:
                 status = "Active" if store["is_active"] else "Inactive"
+                cats = store.get("categories") or []
+                if not cats and store.get("category"):
+                    cats = [store["category"]]
+
                 st.markdown(f"**{store['name']}**")
-                st.caption(f"{store.get('category') or 'No category'} • {status}")
+                st.caption(f"{', '.join(cats) if cats else 'No category'} • {status}")
 
             # Edit section
             with st.expander(f"✏️ Edit • {store['name']}"):
@@ -135,13 +148,18 @@ try:
                     key=f"name_{store['id']}"
                 )
 
-                # Category dropdown with current value
-                current_cat = store.get("category") if store.get("category") in CATEGORIES else CATEGORIES[0]
-                new_category = st.selectbox(
-                    "Category",
+                current_cats = store.get("categories") or []
+                if not current_cats and store.get("category"):
+                    current_cats = [store["category"]]
+
+                # Keep only valid categories
+                current_cats = [c for c in current_cats if c in CATEGORIES]
+
+                new_categories = st.multiselect(
+                    "Categories (pwede more than one)",
                     CATEGORIES,
-                    index=CATEGORIES.index(current_cat),
-                    key=f"cat_{store['id']}"
+                    default=current_cats,
+                    key=f"cats_{store['id']}"
                 )
 
                 new_description = st.text_input(
@@ -158,21 +176,25 @@ try:
                 )
 
                 if st.button("Save Changes", key=f"save_{store['id']}"):
-                    try:
-                        update_data = {
-                            "name": new_name,
-                            "category": new_category,
-                            "description": new_description
-                        }
+                    if not new_categories:
+                        st.error("Please select at least one category.")
+                    else:
+                        try:
+                            update_data = {
+                                "name": new_name,
+                                "category": new_categories[0],
+                                "categories": new_categories,
+                                "description": new_description
+                            }
 
-                        if new_logo_file:
-                            update_data["logo_url"] = upload_logo(new_logo_file)
+                            if new_logo_file:
+                                update_data["logo_url"] = upload_logo(new_logo_file)
 
-                        supabase.table("stores").update(update_data).eq("id", store["id"]).execute()
-                        st.success("Store updated!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Update failed: {e}")
+                            supabase.table("stores").update(update_data).eq("id", store["id"]).execute()
+                            st.success("Store updated!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Update failed: {e}")
 
             # Toggle + Delete
             c1, c2 = st.columns(2)

@@ -31,7 +31,6 @@ st.markdown("""
         font-size: 0.88rem;
         color: #777;
     }
-    /* Orange primary buttons */
     .stButton > button {
         width: 100%;
         border-radius: 12px;
@@ -71,7 +70,7 @@ search = st.text_input(
 st.write("")
 
 # --------------------------------------------------
-# Category Dropdown (cleaner)
+# Category Dropdown
 # --------------------------------------------------
 CATEGORIES = [
     "All",
@@ -98,11 +97,20 @@ st.write("")
 def get_active_stores():
     supabase = get_supabase()
     response = supabase.table("stores")\
-        .select("id, name, description, category, logo_url")\
+        .select("id, name, description, category, categories, logo_url")\
         .eq("is_active", True)\
         .order("name")\
         .execute()
     return response.data
+
+# --------------------------------------------------
+# Helper: get store categories
+# --------------------------------------------------
+def get_store_categories(store):
+    cats = store.get("categories") or []
+    if not cats and store.get("category"):
+        cats = [store["category"]]
+    return cats
 
 # --------------------------------------------------
 # Display Stores
@@ -111,11 +119,11 @@ try:
     stores = get_active_stores()
     filtered = stores
 
-    # Category filter
+    # Category filter (supports multiple categories per store)
     if selected_category != "All":
         filtered = [
             s for s in filtered
-            if s.get("category") and selected_category.lower() in s.get("category", "").lower()
+            if selected_category in get_store_categories(s)
         ]
 
     # Search filter
@@ -124,8 +132,8 @@ try:
         filtered = [
             s for s in filtered
             if search_lower in s.get("name", "").lower()
-            or search_lower in (s.get("category") or "").lower()
             or search_lower in (s.get("description") or "").lower()
+            or any(search_lower in c.lower() for c in get_store_categories(s))
         ]
 
     if not filtered:
@@ -134,6 +142,9 @@ try:
         st.caption(f"{len(filtered)} store(s) found")
 
         for store in filtered:
+            cats = get_store_categories(store)
+            cat_label = ", ".join(cats) if cats else (store.get("description") or "Store")
+
             col1, col2 = st.columns([1, 3])
 
             with col1:
@@ -144,10 +155,7 @@ try:
 
             with col2:
                 st.markdown(f"<div class='store-name'>{store['name']}</div>", unsafe_allow_html=True)
-                st.markdown(
-                    f"<div class='store-category'>{store.get('category') or store.get('description') or 'Store'}</div>",
-                    unsafe_allow_html=True
-                )
+                st.markdown(f"<div class='store-category'>{cat_label}</div>", unsafe_allow_html=True)
 
             if st.button(f"Pumili • {store['name']}", key=store["id"]):
                 st.session_state["selected_store_id"] = store["id"]
