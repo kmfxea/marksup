@@ -3,7 +3,7 @@ from utils.supabase_client import get_supabase
 from utils.helpers import haversine_km, delivery_fee_from_km
 
 try:
-    from streamlit_js_eval import get_geolocation
+    from streamlit_geolocation import streamlit_geolocation
     HAS_GEO = True
 except ImportError:
     HAS_GEO = False

@@ -3,7 +3,7 @@ from utils.supabase_client import get_supabase
 from utils.helpers import haversine_km, delivery_fee_from_km
 
 try:
-    from streamlit_js_eval import get_geolocation
+    from streamlit_geolocation import streamlit_geolocation
     HAS_GEO = True
 except ImportError:
     HAS_GEO = False
@@ -90,34 +90,26 @@ if customer_lat and customer_lng:
         st.session_state.customer_lng = None
         st.rerun()
 else:
+    st.caption("Tap the location button below (phone recommended)")
+
     if HAS_GEO:
-        if st.button("📍 Use my location to see distance", use_container_width=True):
-            with st.spinner("Getting your location..."):
-                try:
-                    loc = get_geolocation()
-                    coords = None
-                    if loc:
-                        if isinstance(loc, dict) and loc.get("coords"):
-                            coords = loc["coords"]
-                        elif isinstance(loc, dict) and "latitude" in loc:
-                            coords = loc
-
-                    if coords and coords.get("latitude") and coords.get("longitude"):
-                        st.session_state.customer_lat = float(coords["latitude"])
-                        st.session_state.customer_lng = float(coords["longitude"])
-                        st.success("Location set!")
-                        st.rerun()
-                    else:
-                        st.warning("GPS not available on this device. Use manual location below (or try on your phone).")
-                except Exception as e:
-                    st.warning(f"GPS failed. Use manual location below. ({e})")
+        loc = streamlit_geolocation()
+        # Returns dict like {"latitude": ..., "longitude": ...} when available
+        if loc and isinstance(loc, dict):
+            lat = loc.get("latitude")
+            lng = loc.get("longitude")
+            if lat is not None and lng is not None:
+                st.session_state.customer_lat = float(lat)
+                st.session_state.customer_lng = float(lng)
+                st.success("Location set!")
+                st.rerun()
     else:
-        st.caption("Install streamlit-js-eval to enable GPS.")
+        st.caption("GPS package not installed yet.")
 
-    with st.expander("Manual location (for PC / if GPS fails)"):
+    with st.expander("Manual location (backup)"):
         m_lat = st.number_input("Latitude", value=14.7000, format="%.6f", key="store_manual_lat")
         m_lng = st.number_input("Longitude", value=121.0700, format="%.6f", key="store_manual_lng")
-        st.caption("Google Maps → right-click your place → copy coordinates")
+        st.caption("Google Maps → right-click → copy coordinates")
         if st.button("Set manual location"):
             st.session_state.customer_lat = m_lat
             st.session_state.customer_lng = m_lng

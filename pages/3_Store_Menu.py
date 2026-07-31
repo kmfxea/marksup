@@ -10,14 +10,15 @@ st.set_page_config(
 )
 
 # --------------------------------------------------
-# CSS - Orange buttons + clean UI
+# Advanced CSS
 # --------------------------------------------------
 st.markdown("""
 <style>
     .stApp {
         max-width: 500px;
         margin: auto;
-        padding-bottom: 120px;
+        padding-bottom: 130px;
+        background: #fafafa;
     }
     h1, h2, h3 {
         color: #1a1a2e !important;
@@ -38,6 +39,13 @@ st.markdown("""
         color: #777;
         margin-top: 0.2rem;
     }
+    .custom-box {
+        background: #fff8f0;
+        border: 1px solid #ffe0c2;
+        border-radius: 14px;
+        padding: 1rem 1.1rem;
+        margin-bottom: 1rem;
+    }
     .cart-bar {
         position: fixed;
         bottom: 0;
@@ -52,11 +60,10 @@ st.markdown("""
         z-index: 999;
         box-shadow: 0 -2px 10px rgba(0,0,0,0.12);
     }
-    /* Orange buttons */
     .stButton > button {
         width: 100%;
         border-radius: 12px;
-        height: 2.8rem;
+        height: 2.9rem;
         font-weight: 600;
         border: none !important;
         background-color: #FF6B00 !important;
@@ -71,7 +78,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --------------------------------------------------
-# Check selected store
+# Validate store
 # --------------------------------------------------
 if "selected_store_id" not in st.session_state:
     st.warning("No store selected.")
@@ -82,9 +89,6 @@ if "selected_store_id" not in st.session_state:
 store_id = st.session_state["selected_store_id"]
 store_name = st.session_state.get("selected_store_name", "Store")
 
-# --------------------------------------------------
-# Initialize Cart
-# --------------------------------------------------
 if "cart" not in st.session_state:
     st.session_state.cart = []
 
@@ -100,13 +104,13 @@ if st.button("← Back to Stores"):
 st.write("")
 
 # --------------------------------------------------
-# Fetch Store + Items
+# Load store category
 # --------------------------------------------------
 supabase = get_supabase()
 
 try:
     store_data = supabase.table("stores")\
-        .select("id, name, category, categories")\
+        .select("id, name, category, categories, address, latitude, longitude")\
         .eq("id", store_id)\
         .single()\
         .execute().data
@@ -114,20 +118,16 @@ try:
     cats = store_data.get("categories") or []
     if not cats and store_data.get("category"):
         cats = [store_data.get("category")]
-    store_category = " ".join(cats).lower()
-except:
+    store_category = " ".join([str(c).lower() for c in cats])
+
+    if store_data.get("address"):
+        st.caption(f"📍 {store_data['address']}")
+except Exception:
+    store_data = {}
     store_category = ""
 
-@st.cache_data(ttl=30)
-def get_store_items(store_id):
-    supabase = get_supabase()
-    response = supabase.table("items")\
-        .select("*")\
-        .eq("store_id", store_id)\
-        .eq("is_available", True)\
-        .order("name")\
-        .execute()
-    return response.data
+is_grocery = "grocery" in store_category
+is_pharmacy = "pharmacy" in store_category
 
 # --------------------------------------------------
 # Helper: Upload Reseta
@@ -149,31 +149,30 @@ def upload_reseta(file):
         return None
 
 # --------------------------------------------------
-# CUSTOM LIST (Grocery / Pharmacy)
+# CUSTOM GROCERY / PHARMACY LIST
 # --------------------------------------------------
-is_grocery = "grocery" in store_category
-is_pharmacy = "pharmacy" in store_category
-
 if is_grocery or is_pharmacy:
     st.markdown("#### Custom List")
 
-    if is_pharmacy:
-        st.caption("Ilista ang gamot / items. Pwede ding mag-upload ng reseta.")
-    else:
-        st.caption("Ilista ang mga items na gusto mong ipabili.")
+    list_label = "Pharmacy list" if is_pharmacy else "Grocery list"
+    st.markdown(f"""
+    <div class="custom-box">
+        Type the items you want us to buy. Be as specific as possible.
+    </div>
+    """, unsafe_allow_html=True)
 
     shopping_list = st.text_area(
-        "Your shopping list *",
+        f"Your {list_label} *",
         placeholder="Example:\n- 2kg rice\n- 1 tray egg\n- 3 canned tuna\n- Neozep 1 box",
-        height=140,
+        height=150,
         key="shopping_list"
     )
 
     reseta_file = None
     if is_pharmacy:
-        st.write("**Reseta (Optional)**")
+        st.write("**Reseta / Prescription (Optional)**")
         reseta_file = st.file_uploader(
-            "Upload prescription / reseta photo",
+            "Upload reseta photo",
             type=["png", "jpg", "jpeg", "webp"],
             key="reseta_upload"
         )
@@ -184,7 +183,8 @@ if is_grocery or is_pharmacy:
         "Estimated Budget (₱)",
         min_value=50.0,
         value=200.0,
-        step=50.0
+        step=50.0,
+        help="Approx amount for these items"
     )
 
     if st.button("🛒 Add List to Cart", use_container_width=True):
@@ -218,18 +218,28 @@ if is_grocery or is_pharmacy:
     st.markdown("---")
 
 # --------------------------------------------------
-# Regular Items
+# REGULAR ITEMS
 # --------------------------------------------------
 st.markdown("#### Available Items")
+
+@st.cache_data(ttl=30)
+def get_store_items(store_id):
+    sb = get_supabase()
+    return sb.table("items")\
+        .select("*")\
+        .eq("store_id", store_id)\
+        .eq("is_available", True)\
+        .order("name")\
+        .execute().data
 
 try:
     items = get_store_items(store_id)
 
     if not items:
-        if not (is_grocery or is_pharmacy):
-            st.info("No available items in this store right now.")
+        if is_grocery or is_pharmacy:
+            st.caption("No preset items. Use the Custom List above.")
         else:
-            st.caption("No preset items. You can use the Custom List above.")
+            st.info("No available items in this store right now.")
     else:
         for item in items:
             col1, col2 = st.columns([1, 3])
@@ -242,11 +252,11 @@ try:
 
             with col2:
                 st.markdown(f"<div class='item-name'>{item['name']}</div>", unsafe_allow_html=True)
-                st.markdown(f"<div class='item-price'>₱{item['price']:.2f}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='item-price'>₱{float(item['price']):.2f}</div>", unsafe_allow_html=True)
                 if item.get("description"):
                     st.markdown(f"<div class='item-desc'>{item['description']}</div>", unsafe_allow_html=True)
 
-            if st.button(f"Add to Cart • ₱{item['price']:.2f}", key=f"add_{item['id']}"):
+            if st.button(f"Add to Cart • ₱{float(item['price']):.2f}", key=f"add_{item['id']}"):
                 found = False
                 for cart_item in st.session_state.cart:
                     if cart_item["id"] == item["id"]:
@@ -276,8 +286,8 @@ except Exception as e:
 # Sticky Cart Bar
 # --------------------------------------------------
 cart = st.session_state.get("cart", [])
-total_items = sum(item["quantity"] for item in cart)
-total_amount = sum(item["price"] * item["quantity"] for item in cart)
+total_items = sum(i["quantity"] for i in cart)
+total_amount = sum(i["price"] * i["quantity"] for i in cart)
 
 if total_items > 0:
     st.markdown(f"""

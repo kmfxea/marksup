@@ -26,7 +26,7 @@ if not order_id:
     st.stop()
 
 # --------------------------------------------------
-# CSS
+# CSS - Orange buttons + clean UI
 # --------------------------------------------------
 st.markdown("""
 <style>
@@ -34,6 +34,9 @@ st.markdown("""
         max-width: 500px;
         margin: auto;
         padding-bottom: 2rem;
+    }
+    h1, h2, h3 {
+        color: #1a1a2e !important;
     }
     .address-box {
         background: #fff8f0;
@@ -51,15 +54,14 @@ st.markdown("""
         margin-bottom: 0.8rem;
         border: 1px solid #eee;
     }
-    .grocery-box {
+    .notes-box {
         background: #e8f5e9;
         border: 1px solid #c8e6c9;
         border-radius: 12px;
         padding: 1rem;
-        margin: 0.8rem 0;
+        margin-bottom: 0.8rem;
         white-space: pre-wrap;
         font-size: 0.95rem;
-        line-height: 1.5;
     }
     .msg-rider {
         background: #e3f2fd;
@@ -76,9 +78,16 @@ st.markdown("""
     }
     .stButton > button {
         width: 100%;
-        border-radius: 10px;
+        border-radius: 12px;
         height: 2.8rem;
         font-weight: 600;
+        border: none !important;
+        background-color: #FF6B00 !important;
+        color: white !important;
+    }
+    .stButton > button:hover {
+        background-color: #e65c00 !important;
+        color: white !important;
     }
     #MainMenu, footer, header {visibility: hidden;}
 </style>
@@ -127,6 +136,9 @@ if order.get("landmark"):
 st.write(f"**Customer:** {order['customer_name']}")
 st.write(f"**Contact:** {order['customer_contact']}")
 
+if order.get("distance_km"):
+    st.caption(f"Distance: ~{order['distance_km']} km")
+
 col1, col2 = st.columns(2)
 with col1:
     st.link_button("📞 Call", f"tel:{order['customer_contact']}")
@@ -156,18 +168,17 @@ else:
 st.write("")
 
 # --------------------------------------------------
-# CUSTOMER SHOPPING LIST / NOTES (IMPORTANT)
+# Customer Notes / Grocery / Pharmacy List
 # --------------------------------------------------
-st.markdown("#### 🛒 Customer Shopping List")
-
-if order.get("notes") and order["notes"].strip():
+st.markdown("#### Customer Notes / Item List")
+if order.get("notes"):
     st.markdown(f"""
-    <div class="grocery-box">
-        {order['notes']}
+    <div class="notes-box">
+    {order['notes']}
     </div>
     """, unsafe_allow_html=True)
 else:
-    st.warning("No detailed shopping list provided by the customer.")
+    st.warning("No special instructions or item list provided.")
 
 st.write("")
 
@@ -187,7 +198,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-if order["items_total"] > 100:
+if order["items_total"] and float(order["items_total"]) > 100:
     st.warning("⚠️ High value order (above ₱100). Confirm GCash payment first before buying.")
 
 st.write("")
@@ -255,8 +266,8 @@ if status == "Order Placed" and order.get("rider_id") is None:
         if st.button("✅ Accept Order"):
             try:
                 rider = supabase.table("riders").select("wallet_balance").eq("id", rider_id).single().execute().data
-                if rider["wallet_balance"] < -50:
-                    st.error("Your wallet balance is too low. Please top up first.")
+                if rider["wallet_balance"] is not None and float(rider["wallet_balance"]) < -50:
+                    st.error("Wallet balance too low. Please top up first.")
                 else:
                     supabase.table("orders").update({
                         "rider_id": rider_id,
@@ -289,7 +300,10 @@ elif order.get("rider_id") == rider_id:
 
     elif status == "On the Way":
         st.write("**Proof of Delivery (Required)**")
-        proof_file = st.file_uploader("Upload photo of delivered items", type=["png", "jpg", "jpeg"])
+        proof_file = st.file_uploader(
+            "Upload photo of delivered items",
+            type=["png", "jpg", "jpeg", "webp"]
+        )
 
         if st.button("✅ Mark as Delivered"):
             if proof_file is None:
@@ -306,7 +320,11 @@ elif order.get("rider_id") == rider_id:
                     )
                     proof_url = supabase.storage.from_("item-photos").get_public_url(file_name)
 
-                    service_fees = (order["delivery_fee"] or 0) + (order["floor_fee"] or 0) + (order["handling_fee"] or 0)
+                    service_fees = (
+                        float(order.get("delivery_fee") or 0) +
+                        float(order.get("floor_fee") or 0) +
+                        float(order.get("handling_fee") or 0)
+                    )
                     commission = round(service_fees * 0.05, 2)
 
                     supabase.table("orders").update({
@@ -316,7 +334,7 @@ elif order.get("rider_id") == rider_id:
                     }).eq("id", order_id).execute()
 
                     rider = supabase.table("riders").select("wallet_balance").eq("id", rider_id).single().execute().data
-                    new_balance = float(rider["wallet_balance"]) - commission
+                    new_balance = float(rider["wallet_balance"] or 0) - commission
 
                     supabase.table("riders").update({
                         "wallet_balance": new_balance,
@@ -337,6 +355,9 @@ elif order.get("rider_id") == rider_id:
                     st.switch_page("pages/11_Rider_Dashboard.py")
                 except Exception as e:
                     st.error(f"Error: {e}")
+
+    elif status == "Delivered":
+        st.success("This order is already delivered.")
 
 else:
     st.info("This order is already assigned to another rider.")
