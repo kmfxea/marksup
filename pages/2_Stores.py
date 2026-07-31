@@ -83,25 +83,48 @@ if "customer_lng" not in st.session_state:
 customer_lat = st.session_state.get("customer_lat")
 customer_lng = st.session_state.get("customer_lng")
 
-if not (customer_lat and customer_lng):
+if customer_lat and customer_lng:
+    st.success(f"📍 Location on • {customer_lat:.4f}, {customer_lng:.4f}")
+    if st.button("Clear location"):
+        st.session_state.customer_lat = None
+        st.session_state.customer_lng = None
+        st.rerun()
+else:
     if HAS_GEO:
         if st.button("📍 Use my location to see distance", use_container_width=True):
             with st.spinner("Getting your location..."):
-                loc = get_geolocation()
-                if loc and loc.get("coords"):
-                    st.session_state.customer_lat = loc["coords"]["latitude"]
-                    st.session_state.customer_lng = loc["coords"]["longitude"]
-                    st.success("Location set!")
-                    st.rerun()
-                else:
-                    st.warning("Could not get location. Please allow GPS access.")
+                try:
+                    loc = get_geolocation()
+                    coords = None
+                    if loc:
+                        if isinstance(loc, dict) and loc.get("coords"):
+                            coords = loc["coords"]
+                        elif isinstance(loc, dict) and "latitude" in loc:
+                            coords = loc
+
+                    if coords and coords.get("latitude") and coords.get("longitude"):
+                        st.session_state.customer_lat = float(coords["latitude"])
+                        st.session_state.customer_lng = float(coords["longitude"])
+                        st.success("Location set!")
+                        st.rerun()
+                    else:
+                        st.warning("GPS not available on this device. Use manual location below (or try on your phone).")
+                except Exception as e:
+                    st.warning(f"GPS failed. Use manual location below. ({e})")
     else:
-        st.caption("Install streamlit-js-eval to enable distance.")
-else:
-    st.caption(f"📍 Location on • distances shown below")
+        st.caption("Install streamlit-js-eval to enable GPS.")
+
+    with st.expander("Manual location (for PC / if GPS fails)"):
+        m_lat = st.number_input("Latitude", value=14.7000, format="%.6f", key="store_manual_lat")
+        m_lng = st.number_input("Longitude", value=121.0700, format="%.6f", key="store_manual_lng")
+        st.caption("Google Maps → right-click your place → copy coordinates")
+        if st.button("Set manual location"):
+            st.session_state.customer_lat = m_lat
+            st.session_state.customer_lng = m_lng
+            st.success("Manual location saved!")
+            st.rerun()
 
 st.write("")
-
 # --------------------------------------------------
 # Search
 # --------------------------------------------------
