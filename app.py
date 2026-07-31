@@ -205,7 +205,20 @@ with col1:
 
 with col2:
     if st.button("ℹ️  About", use_container_width=True):
-        st.info("**MarksUp** – Your everyday assistant\n\nPabili • Padala • Errands\nFairview Area")
+        st.info(
+            "**MarksUp – Your everyday assistant**\n\n"
+            "MarksUp helps you with everyday errands in Fairview — especially **Pabili**.\n\n"
+            "Just choose a store, select your items, and we’ll handle the rest.  \n"
+            "A rider will buy and deliver them straight to your door.\n\n"
+            "**What we offer:**\n"
+            "- Pabili from local stores\n"
+            "- Fast delivery within Fairview\n"
+            "- Cash or GCash payment\n"
+            "- Real-time order tracking\n\n"
+            "**Service Hours:**  \n"
+            "7:00 AM – 9:00 PM daily\n\n"
+            "**Simple. Reliable. Local.**"
+        )
 
 # --------------------------------------------------
 # Footer
