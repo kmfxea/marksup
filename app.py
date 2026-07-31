@@ -48,6 +48,20 @@ st.markdown("""
         background: #fafafa;
     }
 
+    /* Tablet */
+    @media (min-width: 768px) {
+        .stApp {
+            max-width: 600px;
+        }
+    }
+
+    /* Laptop */
+    @media (min-width: 1024px) {
+        .stApp {
+            max-width: 720px;
+        }
+    }
+
     /* Header */
     .header {
         text-align: center;
