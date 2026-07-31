@@ -34,18 +34,6 @@ if st.button("← Back to Dashboard"):
 st.write("")
 
 # --------------------------------------------------
-# Fixed Categories
-# --------------------------------------------------
-CATEGORIES = [
-    "Umagahan",
-    "Tanghalian",
-    "Meryenda",
-    "Hapunan",
-    "Grocery",
-    "Pharmacy"
-]
-
-# --------------------------------------------------
 # Helper: Upload Logo
 # --------------------------------------------------
 def upload_logo(file):
@@ -69,11 +57,24 @@ def upload_logo(file):
 with st.expander("➕ Add New Store", expanded=True):
     name = st.text_input("Store Name*")
 
-    selected_categories = st.multiselect(
-        "Categories * (pwede more than one)",
-        CATEGORIES,
-        help="Example: Chooks to Go = Tanghalian + Hapunan"
-    )
+    st.write("**Categories * (check all that apply)**")
+    selected_categories = []
+
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.checkbox("Umagahan", key="add_umagahan"):
+            selected_categories.append("Umagahan")
+        if st.checkbox("Tanghalian", key="add_tanghalian"):
+            selected_categories.append("Tanghalian")
+        if st.checkbox("Meryenda", key="add_meryenda"):
+            selected_categories.append("Meryenda")
+    with c2:
+        if st.checkbox("Hapunan", key="add_hapunan"):
+            selected_categories.append("Hapunan")
+        if st.checkbox("Grocery", key="add_grocery"):
+            selected_categories.append("Grocery")
+        if st.checkbox("Pharmacy", key="add_pharmacy"):
+            selected_categories.append("Pharmacy")
 
     description = st.text_input("Description (optional)")
 
@@ -97,8 +98,8 @@ with st.expander("➕ Add New Store", expanded=True):
                     supabase = get_supabase()
                     supabase.table("stores").insert({
                         "name": name,
-                        "category": selected_categories[0],  # keep old column for compatibility
-                        "categories": selected_categories,   # new multi category
+                        "category": selected_categories[0],
+                        "categories": selected_categories,
                         "description": description,
                         "logo_url": logo_url,
                         "is_active": True
@@ -152,15 +153,24 @@ try:
                 if not current_cats and store.get("category"):
                     current_cats = [store["category"]]
 
-                # Keep only valid categories
-                current_cats = [c for c in current_cats if c in CATEGORIES]
+                st.write("**Categories (check all that apply)**")
+                new_categories = []
 
-                new_categories = st.multiselect(
-                    "Categories (pwede more than one)",
-                    CATEGORIES,
-                    default=current_cats,
-                    key=f"cats_{store['id']}"
-                )
+                ec1, ec2 = st.columns(2)
+                with ec1:
+                    if st.checkbox("Umagahan", value="Umagahan" in current_cats, key=f"e_uma_{store['id']}"):
+                        new_categories.append("Umagahan")
+                    if st.checkbox("Tanghalian", value="Tanghalian" in current_cats, key=f"e_tang_{store['id']}"):
+                        new_categories.append("Tanghalian")
+                    if st.checkbox("Meryenda", value="Meryenda" in current_cats, key=f"e_mer_{store['id']}"):
+                        new_categories.append("Meryenda")
+                with ec2:
+                    if st.checkbox("Hapunan", value="Hapunan" in current_cats, key=f"e_hap_{store['id']}"):
+                        new_categories.append("Hapunan")
+                    if st.checkbox("Grocery", value="Grocery" in current_cats, key=f"e_gro_{store['id']}"):
+                        new_categories.append("Grocery")
+                    if st.checkbox("Pharmacy", value="Pharmacy" in current_cats, key=f"e_pha_{store['id']}"):
+                        new_categories.append("Pharmacy")
 
                 new_description = st.text_input(
                     "Description",

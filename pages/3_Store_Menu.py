@@ -10,14 +10,14 @@ st.set_page_config(
 )
 
 # --------------------------------------------------
-# CSS
+# CSS - Orange buttons + clean UI
 # --------------------------------------------------
 st.markdown("""
 <style>
     .stApp {
         max-width: 500px;
         margin: auto;
-        padding-bottom: 110px;
+        padding-bottom: 120px;
     }
     h1, h2, h3 {
         color: #1a1a2e !important;
@@ -26,6 +26,7 @@ st.markdown("""
         font-size: 1.1rem;
         font-weight: 600;
         color: #1a1a2e;
+        margin-bottom: 0.15rem;
     }
     .item-price {
         font-size: 1rem;
@@ -35,6 +36,7 @@ st.markdown("""
     .item-desc {
         font-size: 0.85rem;
         color: #777;
+        margin-top: 0.2rem;
     }
     .cart-bar {
         position: fixed;
@@ -50,11 +52,19 @@ st.markdown("""
         z-index: 999;
         box-shadow: 0 -2px 10px rgba(0,0,0,0.12);
     }
+    /* Orange buttons */
     .stButton > button {
         width: 100%;
-        border-radius: 10px;
-        height: 2.7rem;
+        border-radius: 12px;
+        height: 2.8rem;
         font-weight: 600;
+        border: none !important;
+        background-color: #FF6B00 !important;
+        color: white !important;
+    }
+    .stButton > button:hover {
+        background-color: #e65c00 !important;
+        color: white !important;
     }
     #MainMenu, footer, header {visibility: hidden;}
 </style>
@@ -96,12 +106,15 @@ supabase = get_supabase()
 
 try:
     store_data = supabase.table("stores")\
-        .select("id, name, category")\
+        .select("id, name, category, categories")\
         .eq("id", store_id)\
         .single()\
         .execute().data
 
-    store_category = (store_data.get("category") or "").lower()
+    cats = store_data.get("categories") or []
+    if not cats and store_data.get("category"):
+        cats = [store_data.get("category")]
+    store_category = " ".join(cats).lower()
 except:
     store_category = ""
 
@@ -145,7 +158,7 @@ if is_grocery or is_pharmacy:
     st.markdown("#### Custom List")
 
     if is_pharmacy:
-        st.caption("Ilista ang gamot o items na gusto mong ipabili. Pwede ding mag-upload ng reseta.")
+        st.caption("Ilista ang gamot / items. Pwede ding mag-upload ng reseta.")
     else:
         st.caption("Ilista ang mga items na gusto mong ipabili.")
 
@@ -156,7 +169,7 @@ if is_grocery or is_pharmacy:
         key="shopping_list"
     )
 
-    reseta_url = None
+    reseta_file = None
     if is_pharmacy:
         st.write("**Reseta (Optional)**")
         reseta_file = st.file_uploader(
@@ -171,27 +184,23 @@ if is_grocery or is_pharmacy:
         "Estimated Budget (₱)",
         min_value=50.0,
         value=200.0,
-        step=50.0,
-        help="Approx amount you expect to spend on these items"
+        step=50.0
     )
 
     if st.button("🛒 Add List to Cart", use_container_width=True):
         if not shopping_list.strip():
             st.error("Please type your shopping list first.")
         else:
-            # Upload reseta if pharmacy
+            reseta_url = None
             if is_pharmacy and reseta_file:
                 with st.spinner("Uploading reseta..."):
                     reseta_url = upload_reseta(reseta_file)
 
             list_type = "Custom Pharmacy List" if is_pharmacy else "Custom Grocery List"
-
-            # Build notes for rider
             notes = shopping_list.strip()
             if reseta_url:
                 notes += f"\n\n📄 Reseta: {reseta_url}"
 
-            # Add to cart
             st.session_state.cart.append({
                 "id": f"custom_{uuid.uuid4()}",
                 "name": list_type,
