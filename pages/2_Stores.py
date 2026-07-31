@@ -1,9 +1,6 @@
 import streamlit as st
 from utils.supabase_client import get_supabase
 
-# --------------------------------------------------
-# Page Config
-# --------------------------------------------------
 st.set_page_config(
     page_title="Stores • MarksUp",
     page_icon="🛵",
@@ -19,6 +16,7 @@ st.markdown("""
     .stApp {
         max-width: 500px;
         margin: auto;
+        padding-bottom: 2rem;
     }
     h1, h2, h3 {
         color: #1a1a2e !important;
@@ -30,17 +28,28 @@ st.markdown("""
         margin-bottom: 0.15rem;
     }
     .store-category {
-        font-size: 0.9rem;
+        font-size: 0.88rem;
         color: #777;
     }
     .stButton > button {
         width: 100%;
         border-radius: 10px;
-        height: 2.7rem;
+        height: 2.6rem;
         font-weight: 600;
-        background-color: #FF6B00;
-        color: white;
         border: none;
+    }
+    /* Category buttons */
+    div[data-testid="column"] .stButton > button {
+        height: 2.4rem;
+        font-size: 0.9rem;
+        background: white !important;
+        color: #1a1a2e !important;
+        border: 1px solid #e0e0e0 !important;
+    }
+    div[data-testid="column"] .stButton > button:hover {
+        background: #FFF3E8 !important;
+        border-color: #FF6B00 !important;
+        color: #FF6B00 !important;
     }
     #MainMenu, footer, header {visibility: hidden;}
 </style>
@@ -55,6 +64,34 @@ st.caption("Choose a store to start your order")
 if st.button("← Back to Home"):
     st.switch_page("app.py")
 
+st.write("")
+
+# --------------------------------------------------
+# Search
+# --------------------------------------------------
+search = st.text_input(
+    "🔍 Search store",
+    placeholder="Type store name..."
+)
+
+st.write("")
+
+# --------------------------------------------------
+# Category Filter
+# --------------------------------------------------
+categories = ["All", "Umagahan", "Tanghalian", "Meryenda", "Hapunan", "Grocery", "Pharmacy"]
+
+# Initialize selected category
+if "selected_category" not in st.session_state:
+    st.session_state.selected_category = "All"
+
+cols = st.columns(4)
+for i, cat in enumerate(categories):
+    with cols[i % 4]:
+        if st.button(cat, key=f"cat_{cat}"):
+            st.session_state.selected_category = cat
+
+st.caption(f"Filter: **{st.session_state.selected_category}**")
 st.write("")
 
 # --------------------------------------------------
@@ -76,10 +113,30 @@ def get_active_stores():
 try:
     stores = get_active_stores()
 
-    if not stores:
-        st.info("Walang available na store ngayon.\nPakihintay o subukan ulit mamaya.")
+    # Apply filters
+    filtered = stores
+
+    # Category filter
+    if st.session_state.selected_category != "All":
+        filtered = [
+            s for s in filtered
+            if s.get("category") and st.session_state.selected_category.lower() in s.get("category", "").lower()
+        ]
+
+    # Search filter
+    if search:
+        search_lower = search.lower()
+        filtered = [
+            s for s in filtered
+            if search_lower in s.get("name", "").lower()
+            or search_lower in (s.get("category") or "").lower()
+            or search_lower in (s.get("description") or "").lower()
+        ]
+
+    if not filtered:
+        st.info("Walang store na tumugma sa search/filter mo.")
     else:
-        for store in stores:
+        for store in filtered:
             col1, col2 = st.columns([1, 3])
 
             with col1:
@@ -103,5 +160,5 @@ try:
             st.markdown("---")
 
 except Exception as e:
-    st.error("May problema sa pag-load ng stores. Subukan ulit.")
+    st.error("May problema sa pag-load ng stores.")
     st.caption(str(e))

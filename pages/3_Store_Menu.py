@@ -1,5 +1,6 @@
 import streamlit as st
 from utils.supabase_client import get_supabase
+import uuid
 
 st.set_page_config(
     page_title="Store Menu • MarksUp",
@@ -8,24 +9,52 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# --------------------------------------------------
+# CSS
+# --------------------------------------------------
 st.markdown("""
 <style>
     .stApp {
         max-width: 500px;
         margin: auto;
-        padding-bottom: 100px;
+        padding-bottom: 110px;
     }
     h1, h2, h3 {
         color: #1a1a2e !important;
     }
+    .item-name {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #1a1a2e;
+    }
+    .item-price {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #FF6B00;
+    }
+    .item-desc {
+        font-size: 0.85rem;
+        color: #777;
+    }
+    .cart-bar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: #FF6B00;
+        color: white;
+        padding: 1rem 1.2rem;
+        text-align: center;
+        font-weight: 600;
+        font-size: 1.05rem;
+        z-index: 999;
+        box-shadow: 0 -2px 10px rgba(0,0,0,0.12);
+    }
     .stButton > button {
         width: 100%;
         border-radius: 10px;
-        height: 2.8rem;
+        height: 2.7rem;
         font-weight: 600;
-        background-color: #FF6B00;
-        color: white;
-        border: none;
     }
     #MainMenu, footer, header {visibility: hidden;}
 </style>
@@ -53,7 +82,7 @@ if "cart" not in st.session_state:
 # Header
 # --------------------------------------------------
 st.markdown(f"### {store_name}")
-st.caption("Select items or type your request")
+st.caption("Select items or create a custom list")
 
 if st.button("← Back to Stores"):
     st.switch_page("pages/2_Stores.py")
@@ -61,159 +90,192 @@ if st.button("← Back to Stores"):
 st.write("")
 
 # --------------------------------------------------
-# Fetch Store Info
+# Fetch Store + Items
 # --------------------------------------------------
 supabase = get_supabase()
 
 try:
-    store = supabase.table("stores")\
+    store_data = supabase.table("stores")\
         .select("id, name, category")\
         .eq("id", store_id)\
         .single()\
         .execute().data
+
+    store_category = (store_data.get("category") or "").lower()
 except:
-    store = {"category": ""}
+    store_category = ""
 
-is_grocery = store.get("category", "").lower() == "grocery"
+@st.cache_data(ttl=30)
+def get_store_items(store_id):
+    supabase = get_supabase()
+    response = supabase.table("items")\
+        .select("*")\
+        .eq("store_id", store_id)\
+        .eq("is_available", True)\
+        .order("name")\
+        .execute()
+    return response.data
 
 # --------------------------------------------------
-# GROCERY FLOW (Advanced UI)
+# Helper: Upload Reseta
 # --------------------------------------------------
-if is_grocery:
-    st.markdown("""
-    <div style="background: linear-gradient(135deg, #fff8f0, #fff3e6); 
-                border: 1px solid #ffe0c2; 
-                border-radius: 16px; 
-                padding: 1.3rem; 
-                margin-bottom: 1.5rem;">
-        <div style="font-size: 1.2rem; font-weight: 700; color: #1a1a2e; margin-bottom: 0.4rem;">
-            🛒 Grocery Request
-        </div>
-        <div style="font-size: 0.9rem; color: #666;">
-            Type the items you want us to buy. Be as specific as possible.
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+def upload_reseta(file):
+    if file is None:
+        return None
+    try:
+        file_ext = file.name.split(".")[-1]
+        file_name = f"reseta_{uuid.uuid4()}.{file_ext}"
+        supabase.storage.from_("item-photos").upload(
+            file_name,
+            file.getvalue(),
+            {"content-type": file.type}
+        )
+        return supabase.storage.from_("item-photos").get_public_url(file_name)
+    except Exception as e:
+        st.error(f"Failed to upload reseta: {e}")
+        return None
 
-    st.markdown("#### Your Shopping List")
-    
-    grocery_list = st.text_area(
-        "Items to buy*",
-        placeholder="Example:\n• 1kg Jasmine Rice\n• 2 dozen Eggs\n• 1L Cooking Oil\n• 3 cans Corned Beef\n• 1.5L Softdrinks",
-        height=200,
-        label_visibility="collapsed"
+# --------------------------------------------------
+# CUSTOM LIST (Grocery / Pharmacy)
+# --------------------------------------------------
+is_grocery = "grocery" in store_category
+is_pharmacy = "pharmacy" in store_category
+
+if is_grocery or is_pharmacy:
+    st.markdown("#### Custom List")
+
+    if is_pharmacy:
+        st.caption("Ilista ang gamot o items na gusto mong ipabili. Pwede ding mag-upload ng reseta.")
+    else:
+        st.caption("Ilista ang mga items na gusto mong ipabili.")
+
+    shopping_list = st.text_area(
+        "Your shopping list *",
+        placeholder="Example:\n- 2kg rice\n- 1 tray egg\n- 3 canned tuna\n- Neozep 1 box",
+        height=140,
+        key="shopping_list"
     )
 
-    st.markdown("#### Estimated Budget (Optional)")
-    st.caption("Para may idea ang rider kung magkano ang expected gastos")
-    
+    reseta_url = None
+    if is_pharmacy:
+        st.write("**Reseta (Optional)**")
+        reseta_file = st.file_uploader(
+            "Upload prescription / reseta photo",
+            type=["png", "jpg", "jpeg", "webp"],
+            key="reseta_upload"
+        )
+        if reseta_file:
+            st.image(reseta_file, width=180, caption="Reseta preview")
+
     estimated_budget = st.number_input(
-        "Budget",
-        min_value=0.0,
-        value=0.0,
+        "Estimated Budget (₱)",
+        min_value=50.0,
+        value=200.0,
         step=50.0,
-        label_visibility="collapsed"
+        help="Approx amount you expect to spend on these items"
     )
 
-    st.write("")
-
-    with st.expander("💡 Tips for better results"):
-        st.markdown("""
-        - Maging specific (hal. “1kg Sinandomeng rice” instead of “rice”)
-        - Lagyan ng quantity
-        - Mention brand kung may preferred ka
-        - Kung may alternative, isulat mo rin
-        """)
-
-    st.write("")
-
-    if st.button("🛒 Add Grocery List to Cart", use_container_width=True):
-        if not grocery_list.strip():
-            st.error("Please type the items you want to buy.")
+    if st.button("🛒 Add List to Cart", use_container_width=True):
+        if not shopping_list.strip():
+            st.error("Please type your shopping list first.")
         else:
-            st.session_state.cart = [{
-                "id": "grocery-custom",
-                "name": "Custom Grocery List",
-                "price": estimated_budget if estimated_budget > 0 else 0,
+            # Upload reseta if pharmacy
+            if is_pharmacy and reseta_file:
+                with st.spinner("Uploading reseta..."):
+                    reseta_url = upload_reseta(reseta_file)
+
+            list_type = "Custom Pharmacy List" if is_pharmacy else "Custom Grocery List"
+
+            # Build notes for rider
+            notes = shopping_list.strip()
+            if reseta_url:
+                notes += f"\n\n📄 Reseta: {reseta_url}"
+
+            # Add to cart
+            st.session_state.cart.append({
+                "id": f"custom_{uuid.uuid4()}",
+                "name": list_type,
+                "price": float(estimated_budget),
                 "quantity": 1,
                 "image_url": None,
-                "is_grocery": True,
-                "grocery_list": grocery_list.strip(),
-                "estimated_budget": estimated_budget
-            }]
+                "notes": notes,
+                "is_custom": True,
+                "reseta_url": reseta_url
+            })
 
-            st.success("Grocery list added to cart!")
-            st.switch_page("pages/4_Cart.py")
+            st.success(f"{list_type} added to cart!")
+            st.rerun()
+
+    st.markdown("---")
 
 # --------------------------------------------------
-# REGULAR STORE FLOW (Menu)
+# Regular Items
 # --------------------------------------------------
-else:
-    @st.cache_data(ttl=30)
-    def get_store_items(store_id):
-        response = supabase.table("items")\
-            .select("*")\
-            .eq("store_id", store_id)\
-            .eq("is_available", True)\
-            .order("name")\
-            .execute()
-        return response.data
+st.markdown("#### Available Items")
 
-    try:
-        items = get_store_items(store_id)
+try:
+    items = get_store_items(store_id)
 
-        if not items:
+    if not items:
+        if not (is_grocery or is_pharmacy):
             st.info("No available items in this store right now.")
         else:
-            for item in items:
-                col1, col2 = st.columns([1, 3])
+            st.caption("No preset items. You can use the Custom List above.")
+    else:
+        for item in items:
+            col1, col2 = st.columns([1, 3])
 
-                with col1:
-                    if item.get("image_url"):
-                        st.image(item["image_url"], width=80)
-                    else:
-                        st.markdown("### 📦")
+            with col1:
+                if item.get("image_url"):
+                    st.image(item["image_url"], width=80)
+                else:
+                    st.markdown("### 📦")
 
-                with col2:
-                    st.markdown(f"**{item['name']}**")
-                    st.markdown(f"₱{item['price']:.2f}")
-                    if item.get("description"):
-                        st.caption(item["description"])
+            with col2:
+                st.markdown(f"<div class='item-name'>{item['name']}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='item-price'>₱{item['price']:.2f}</div>", unsafe_allow_html=True)
+                if item.get("description"):
+                    st.markdown(f"<div class='item-desc'>{item['description']}</div>", unsafe_allow_html=True)
 
-                if st.button(f"Add to Cart • ₱{item['price']:.2f}", key=f"add_{item['id']}"):
-                    found = False
-                    for cart_item in st.session_state.cart:
-                        if cart_item["id"] == item["id"]:
-                            cart_item["quantity"] += 1
-                            found = True
-                            break
-                    if not found:
-                        st.session_state.cart.append({
-                            "id": item["id"],
-                            "name": item["name"],
-                            "price": float(item["price"]),
-                            "quantity": 1,
-                            "image_url": item.get("image_url"),
-                            "is_grocery": False
-                        })
-                    st.toast(f"Added {item['name']} to cart!")
-                    st.rerun()
+            if st.button(f"Add to Cart • ₱{item['price']:.2f}", key=f"add_{item['id']}"):
+                found = False
+                for cart_item in st.session_state.cart:
+                    if cart_item["id"] == item["id"]:
+                        cart_item["quantity"] += 1
+                        found = True
+                        break
+                if not found:
+                    st.session_state.cart.append({
+                        "id": item["id"],
+                        "name": item["name"],
+                        "price": float(item["price"]),
+                        "quantity": 1,
+                        "image_url": item.get("image_url"),
+                        "notes": None,
+                        "is_custom": False
+                    })
+                st.toast(f"Added {item['name']}!")
+                st.rerun()
 
-                st.markdown("---")
+            st.markdown("---")
 
-    except Exception as e:
-        st.error("Failed to load items.")
-        st.caption(str(e))
+except Exception as e:
+    st.error("Failed to load items.")
+    st.caption(str(e))
 
 # --------------------------------------------------
-# Cart Bar
+# Sticky Cart Bar
 # --------------------------------------------------
 cart = st.session_state.get("cart", [])
 total_items = sum(item["quantity"] for item in cart)
 total_amount = sum(item["price"] * item["quantity"] for item in cart)
 
 if total_items > 0:
-    st.write("")
-    st.info(f"🛒 Cart ({total_items}) • ₱{total_amount:.2f}")
-    if st.button("View Cart & Checkout"):
+    st.markdown(f"""
+    <div class="cart-bar">
+        🛒 Cart ({total_items}) • ₱{total_amount:.2f}
+    </div>
+    """, unsafe_allow_html=True)
+
+    if st.button("View Cart & Checkout", use_container_width=True):
         st.switch_page("pages/4_Cart.py")
