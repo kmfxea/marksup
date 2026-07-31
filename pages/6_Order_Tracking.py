@@ -54,6 +54,19 @@ st.markdown("""
         margin-top: 1.2rem;
         border: 1px solid #eee;
     }
+    .msg-customer {
+        background: #e8f5e9;
+        padding: 0.7rem 1rem;
+        border-radius: 12px;
+        margin-bottom: 0.5rem;
+        text-align: right;
+    }
+    .msg-rider {
+        background: #f1f1f1;
+        padding: 0.7rem 1rem;
+        border-radius: 12px;
+        margin-bottom: 0.5rem;
+    }
     .stButton > button {
         width: 100%;
         border-radius: 10px;
@@ -142,6 +155,7 @@ st.write("")
 # Rider Info
 # --------------------------------------------------
 rider = order.get("riders")
+supabase = get_supabase()
 
 if rider:
     st.markdown("#### Your Rider")
@@ -156,7 +170,7 @@ if rider:
     with c1:
         st.link_button("📞 Call Rider", f"tel:{rider['contact_number']}")
     with c2:
-        st.link_button("💬 Message", f"sms:{rider['contact_number']}")
+        st.link_button("💬 SMS", f"sms:{rider['contact_number']}")
 
     if order["payment_method"] == "GCash" and current_status not in ["Delivered", "Cancelled"]:
         st.write("")
@@ -164,6 +178,56 @@ if rider:
         st.write(f"**Number:** `{rider['gcash_number']}`")
         if rider.get("gcash_qr_url"):
             st.image(rider["gcash_qr_url"], width=180, caption="Scan to Pay")
+
+    # --------------------------------------------------
+    # In-App Messaging (Customer ↔ Rider)
+    # --------------------------------------------------
+    if current_status not in ["Cancelled", "Failed Delivery"]:
+        st.write("")
+        st.markdown("#### Message Rider")
+
+        try:
+            messages = supabase.table("messages")\
+                .select("*")\
+                .eq("order_id", order_id)\
+                .order("created_at")\
+                .execute().data
+
+            if messages:
+                for msg in messages:
+                    if msg["sender_type"] == "customer":
+                        st.markdown(f"""
+                        <div class="msg-customer">
+                            <small>You</small><br>
+                            {msg['message']}
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"""
+                        <div class="msg-rider">
+                            <small>Rider</small><br>
+                            {msg['message']}
+                        </div>
+                        """, unsafe_allow_html=True)
+            else:
+                st.caption("No messages yet. Say hello to your rider!")
+
+            new_msg = st.text_input("Type a message", key="customer_msg", placeholder="Type your message...")
+            if st.button("Send Message"):
+                if new_msg.strip():
+                    supabase.table("messages").insert({
+                        "order_id": order_id,
+                        "sender_type": "customer",
+                        "sender_name": order["customer_name"],
+                        "receiver_type": "rider",
+                        "message": new_msg.strip()
+                    }).execute()
+                    st.success("Message sent!")
+                    st.rerun()
+                else:
+                    st.warning("Please type a message.")
+        except Exception as e:
+            st.error(f"Messaging error: {e}")
 
 # --------------------------------------------------
 # POST-DELIVERY RATING
@@ -188,7 +252,6 @@ if current_status == "Delivered":
 
         if st.button("Submit Rating"):
             try:
-                supabase = get_supabase()
                 supabase.table("orders").update({
                     "rating": rating,
                     "review": review,

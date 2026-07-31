@@ -98,13 +98,18 @@ with col1:
     st.markdown(f"**Status:** {status_label}")
 
 with col2:
-    if st.button("Go Online" if not rider["is_online"] else "Go Offline"):
-        supabase.table("riders").update({
-            "is_online": not rider["is_online"]
-        }).eq("id", rider_id).execute()
-        st.rerun()
-
-st.write("")
+    new_status = not rider["is_online"]
+    button_label = "Go Online" if not rider["is_online"] else "Go Offline"
+    
+    if st.button(button_label):
+        try:
+            supabase.table("riders").update({
+                "is_online": new_status
+            }).eq("id", rider_id).execute()
+            st.success(f"Status updated to {'Online' if new_status else 'Offline'}")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Failed to update status: {e}")
 
 # --------------------------------------------------
 # Quick Stats

@@ -51,6 +51,19 @@ st.markdown("""
         margin-bottom: 0.8rem;
         border: 1px solid #eee;
     }
+    .msg-rider {
+        background: #e3f2fd;
+        padding: 0.7rem 1rem;
+        border-radius: 12px;
+        margin-bottom: 0.5rem;
+        text-align: right;
+    }
+    .msg-customer {
+        background: #f1f1f1;
+        padding: 0.7rem 1rem;
+        border-radius: 12px;
+        margin-bottom: 0.5rem;
+    }
     .stButton > button {
         width: 100%;
         border-radius: 10px;
@@ -108,11 +121,10 @@ col1, col2 = st.columns(2)
 with col1:
     st.link_button("📞 Call", f"tel:{order['customer_contact']}")
 with col2:
-    st.link_button("💬 Message", f"sms:{order['customer_contact']}")
+    st.link_button("💬 SMS", f"sms:{order['customer_contact']}")
 
 st.write("")
 
-# Open in Maps
 maps_url = f"https://www.google.com/maps/search/?api=1&query={order['delivery_address'].replace(' ', '+')}"
 st.link_button("🗺️ Open in Google Maps", maps_url)
 
@@ -149,9 +161,58 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# High value alert
 if order["items_total"] > 100:
     st.warning("⚠️ High value order (above ₱100). Confirm GCash payment first before buying.")
+
+st.write("")
+
+# --------------------------------------------------
+# In-App Messaging (Rider ↔ Customer)
+# --------------------------------------------------
+st.markdown("#### Message Customer")
+
+try:
+    messages = supabase.table("messages")\
+        .select("*")\
+        .eq("order_id", order_id)\
+        .order("created_at")\
+        .execute().data
+
+    if messages:
+        for msg in messages:
+            if msg["sender_type"] == "rider":
+                st.markdown(f"""
+                <div class="msg-rider">
+                    <small>You</small><br>
+                    {msg['message']}
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown(f"""
+                <div class="msg-customer">
+                    <small>Customer</small><br>
+                    {msg['message']}
+                </div>
+                """, unsafe_allow_html=True)
+    else:
+        st.caption("No messages yet.")
+
+    new_msg = st.text_input("Type a message", key="rider_msg", placeholder="Type your message...")
+    if st.button("Send Message", key="rider_send"):
+        if new_msg.strip():
+            supabase.table("messages").insert({
+                "order_id": order_id,
+                "sender_type": "rider",
+                "sender_name": st.session_state["user"].get("full_name", "Rider"),
+                "receiver_type": "customer",
+                "message": new_msg.strip()
+            }).execute()
+            st.success("Message sent!")
+            st.rerun()
+        else:
+            st.warning("Please type a message.")
+except Exception as e:
+    st.error(f"Messaging error: {e}")
 
 st.write("")
 
@@ -167,7 +228,6 @@ if status == "Order Placed" and order.get("rider_id") is None:
     with c1:
         if st.button("✅ Accept Order"):
             try:
-                # Check wallet balance
                 rider = supabase.table("riders").select("wallet_balance").eq("id", rider_id).single().execute().data
                 if rider["wallet_balance"] < -50:
                     st.error("Your wallet balance is too low. Please top up first.")
@@ -177,9 +237,7 @@ if status == "Order Placed" and order.get("rider_id") is None:
                         "status": "Confirmed"
                     }).eq("id", order_id).execute()
 
-                    # Mark rider as busy
                     supabase.table("riders").update({"is_busy": True}).eq("id", rider_id).execute()
-
                     st.success("Order accepted!")
                     st.rerun()
             except Exception as e:
@@ -212,9 +270,9 @@ elif order.get("rider_id") == rider_id:
                 st.error("Proof of Delivery photo is required.")
             else:
                 try:
-                    # Upload proof
                     file_ext = proof_file.name.split(".")[-1]
                     file_name = f"proof_{uuid.uuid4()}.{file_ext}"
+
                     supabase.storage.from_("item-photos").upload(
                         file_name,
                         proof_file.getvalue(),
@@ -222,18 +280,15 @@ elif order.get("rider_id") == rider_id:
                     )
                     proof_url = supabase.storage.from_("item-photos").get_public_url(file_name)
 
-                    # Calculate commission
                     service_fees = (order["delivery_fee"] or 0) + (order["floor_fee"] or 0) + (order["handling_fee"] or 0)
                     commission = round(service_fees * 0.05, 2)
 
-                    # Update order
                     supabase.table("orders").update({
                         "status": "Delivered",
                         "proof_of_delivery_url": proof_url,
                         "commission_amount": commission
                     }).eq("id", order_id).execute()
 
-                    # Deduct commission from wallet
                     rider = supabase.table("riders").select("wallet_balance").eq("id", rider_id).single().execute().data
                     new_balance = float(rider["wallet_balance"]) - commission
 
@@ -242,7 +297,6 @@ elif order.get("rider_id") == rider_id:
                         "is_busy": False
                     }).eq("id", rider_id).execute()
 
-                    # Record wallet transaction
                     supabase.table("wallet_transactions").insert({
                         "rider_id": rider_id,
                         "type": "commission",
