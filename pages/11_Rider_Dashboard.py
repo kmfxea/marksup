@@ -219,3 +219,11 @@ st.write("")
 if st.button("🔒 Logout"):
     st.session_state.clear()
     st.switch_page("app.py")
+# --------------------------------------------------
+# Auto Refresh every 10 seconds
+# --------------------------------------------------
+st.markdown("""
+<meta http-equiv="refresh" content="10">
+""", unsafe_allow_html=True)
+
+st.caption("🔄 Auto-refreshes every 10 seconds for new orders")
