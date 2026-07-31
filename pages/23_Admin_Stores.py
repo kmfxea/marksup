@@ -59,7 +59,6 @@ with st.expander("➕ Add New Store", expanded=True):
 
     st.write("**Categories * (check all that apply)**")
     selected_categories = []
-
     c1, c2 = st.columns(2)
     with c1:
         if st.checkbox("Umagahan", key="add_umagahan"):
@@ -78,6 +77,20 @@ with st.expander("➕ Add New Store", expanded=True):
 
     description = st.text_input("Description (optional)")
 
+    st.write("**Location (for distance calculation)**")
+    address = st.text_input(
+        "Store Address *",
+        placeholder="e.g. Dali Fairview, Commonwealth Ave, QC"
+    )
+
+    col_lat, col_lng = st.columns(2)
+    with col_lat:
+        latitude = st.number_input("Latitude", value=14.6960, format="%.6f", help="Example Fairview: 14.6960")
+    with col_lng:
+        longitude = st.number_input("Longitude", value=121.0880, format="%.6f", help="Example Fairview: 121.0880")
+
+    st.caption("Tip: Open Google Maps → right-click location → copy coordinates")
+
     st.write("**Store Logo**")
     logo_file = st.file_uploader(
         "Upload Store Logo",
@@ -90,17 +103,21 @@ with st.expander("➕ Add New Store", expanded=True):
             st.error("Store Name is required.")
         elif not selected_categories:
             st.error("Please select at least one category.")
+        elif not address:
+            st.error("Store Address is required.")
         else:
             try:
                 with st.spinner("Saving store..."):
                     logo_url = upload_logo(logo_file)
-
                     supabase = get_supabase()
                     supabase.table("stores").insert({
                         "name": name,
                         "category": selected_categories[0],
                         "categories": selected_categories,
                         "description": description,
+                        "address": address,
+                        "latitude": latitude,
+                        "longitude": longitude,
                         "logo_url": logo_url,
                         "is_active": True
                     }).execute()
@@ -114,7 +131,7 @@ st.write("")
 st.subheader("Current Stores")
 
 # --------------------------------------------------
-# List + Edit Stores
+# List + Edit
 # --------------------------------------------------
 try:
     supabase = get_supabase()
@@ -140,14 +157,11 @@ try:
 
                 st.markdown(f"**{store['name']}**")
                 st.caption(f"{', '.join(cats) if cats else 'No category'} • {status}")
+                if store.get("address"):
+                    st.caption(f"📍 {store['address']}")
 
-            # Edit section
             with st.expander(f"✏️ Edit • {store['name']}"):
-                new_name = st.text_input(
-                    "Store Name",
-                    value=store["name"],
-                    key=f"name_{store['id']}"
-                )
+                new_name = st.text_input("Store Name", value=store["name"], key=f"name_{store['id']}")
 
                 current_cats = store.get("categories") or []
                 if not current_cats and store.get("category"):
@@ -155,7 +169,6 @@ try:
 
                 st.write("**Categories (check all that apply)**")
                 new_categories = []
-
                 ec1, ec2 = st.columns(2)
                 with ec1:
                     if st.checkbox("Umagahan", value="Umagahan" in current_cats, key=f"e_uma_{store['id']}"):
@@ -172,11 +185,24 @@ try:
                     if st.checkbox("Pharmacy", value="Pharmacy" in current_cats, key=f"e_pha_{store['id']}"):
                         new_categories.append("Pharmacy")
 
-                new_description = st.text_input(
-                    "Description",
-                    value=store.get("description") or "",
-                    key=f"desc_{store['id']}"
-                )
+                new_description = st.text_input("Description", value=store.get("description") or "", key=f"desc_{store['id']}")
+                new_address = st.text_input("Store Address", value=store.get("address") or "", key=f"addr_{store['id']}")
+
+                elat, elng = st.columns(2)
+                with elat:
+                    new_lat = st.number_input(
+                        "Latitude",
+                        value=float(store.get("latitude") or 14.6960),
+                        format="%.6f",
+                        key=f"lat_{store['id']}"
+                    )
+                with elng:
+                    new_lng = st.number_input(
+                        "Longitude",
+                        value=float(store.get("longitude") or 121.0880),
+                        format="%.6f",
+                        key=f"lng_{store['id']}"
+                    )
 
                 st.write("**Replace Logo (optional)**")
                 new_logo_file = st.file_uploader(
@@ -188,15 +214,19 @@ try:
                 if st.button("Save Changes", key=f"save_{store['id']}"):
                     if not new_categories:
                         st.error("Please select at least one category.")
+                    elif not new_address:
+                        st.error("Store Address is required.")
                     else:
                         try:
                             update_data = {
                                 "name": new_name,
                                 "category": new_categories[0],
                                 "categories": new_categories,
-                                "description": new_description
+                                "description": new_description,
+                                "address": new_address,
+                                "latitude": new_lat,
+                                "longitude": new_lng
                             }
-
                             if new_logo_file:
                                 update_data["logo_url"] = upload_logo(new_logo_file)
 
@@ -206,7 +236,6 @@ try:
                         except Exception as e:
                             st.error(f"Update failed: {e}")
 
-            # Toggle + Delete
             c1, c2 = st.columns(2)
             with c1:
                 if st.button("Toggle Active", key=f"toggle_{store['id']}"):
